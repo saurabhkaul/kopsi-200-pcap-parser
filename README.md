@@ -11,4 +11,6 @@ or
 
 to order by quote accept time
 
-The kopsi 200 pcap file is in `test/fixtures`  
+The kopsi 200 pcap file is in `test/fixtures`
+
+This project was made as a submission for the coding challenege here https://www.tsurucapital.com/en/code-sample.html
