@@ -1,0 +1,13 @@
+[package]
+name = "kopsi-200-pcap-parser"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros","fs","io-std","io-util"]}
+packet = {path = "src/packet"}
+chrono = "0.4.38"
+
+[profile.release]
+debug = true
+
