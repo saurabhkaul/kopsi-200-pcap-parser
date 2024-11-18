@@ -5,11 +5,11 @@ To run this program, simply cd into dir and run
 
 `cargo run --release` for default ordering of packets.
 
-or
+or pass the flag "-r" like
 
 `cargo run --release --  -r`
 
-to order by quote accept time
+_to order by quote accept time_
 
 The kopsi 200 pcap file is in `test/fixtures`
 
