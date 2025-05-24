@@ -4,10 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros","fs","io-std","io-util"]}
 packet = {path = "src/packet"}
 chrono = "0.4.38"
 
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+[lib]
+bench = false
+
 [profile.release]
 debug = true
-
+codegen-units = 1
+lto = "fat"
