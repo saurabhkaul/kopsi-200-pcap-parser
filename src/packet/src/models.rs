@@ -23,10 +23,7 @@ pub enum PacketOrdering {
 }
 
 
-
-
 #[derive(Debug,Eq)]
-#[allow(dead_code)]
 pub struct QuotePacket {
     packet_time:NaiveTime,
     issue_code: String,
@@ -60,7 +57,6 @@ impl fmt::Display for QuotePacket {
                    self.ask_prices.get(i).unwrap()
             )?;
         }
-
         Ok(())
     }
 }

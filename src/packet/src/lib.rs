@@ -11,7 +11,9 @@ pub use models::{QuotePacket, PacketOrdering,PacketDataWithTime};
 
 const DEFAULT_CAPACITY: usize = 65536;
 
-const BUFFER_SIZE:usize = 1024;
+
+//This controls the buffer of sorted packets, tweak this based on how much memory we can use
+const BUFFER_SIZE:usize = 1024*1024;
 
 
 
@@ -36,8 +38,8 @@ impl Stream {
                 self.packets.push(packet);
             }
             false =>{
-                self.packets.push(packet);
                 self.writer.flush().unwrap();
+                self.packets.push(packet);
             },
         }
         
@@ -103,5 +105,6 @@ pub fn read_pcap_file(path_buf: PathBuf,ordering: PacketOrdering) -> Result<()>{
             Err(e) => panic!("Error {:?} while reading file", e),
         }
     }
+    
     Ok(())
 }

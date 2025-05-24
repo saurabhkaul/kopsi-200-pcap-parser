@@ -14,3 +14,7 @@ _to order by quote accept time_
 The kopsi 200 pcap file is in `test/fixtures`
 
 This project was made as a submission for the coding challenege here https://www.tsurucapital.com/en/code-sample.html
+
+To bench the code for both kinds of ordering, run
+`sudo cargo bench --bench benchmark -- --verbose`
+
