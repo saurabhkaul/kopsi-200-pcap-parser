@@ -105,6 +105,5 @@ pub fn read_pcap_file(path_buf: PathBuf,ordering: PacketOrdering) -> Result<()>{
             Err(e) => panic!("Error {:?} while reading file", e),
         }
     }
-    
     Ok(())
 }
