@@ -23,4 +23,5 @@ On my 2019 16' Intel Macbook Pro, I'm achieving 30.775ms mean and 30.354ms media
 
 |commit                                  | mean bench | median bench |
 | :-----------------------------------:  | :------:  | :----: |
-|[9bdbf7547a878509770a7a23141744b88bb93936](https://github.com/saurabhkaul/kopsi-200-pcap-parser/commit/9bdbf7547a878509770a7a23141744b88bb93936)| 79.885 ms | 80.197 |
+|[9bdbf7547a878509770a7a23141744b88bb93936](https://github.com/saurabhkaul/kopsi-200-pcap-parser/commit/9bdbf7547a878509770a7a23141744b88bb93936)| 79.885 ms | 80.197 ms |
+|[f01ae1ec9caa8fe091c0ce2a2827095d97b535ca](https://github.com/saurabhkaul/kopsi-200-pcap-parser/commit/f01ae1ec9caa8fe091c0ce2a2827095d97b535ca)| 120.08 ms | 118.96 ms |
