@@ -18,4 +18,7 @@ This project was made as a submission for the coding challenege here https://www
 To bench the code for both kinds of ordering, run
 `sudo cargo bench --bench benchmark -- --verbose`
 
-On my 2019 16' Intel Macbook Pro, I'm achieving 30.775ms mean and 30.354ms median benchmark time on parsing the packet file.
+On my 2019 16' Intel Macbook Pro, I'm achieving 30.775ms mean and 30.354ms median benchmark time on parsing the packet file. Previous benches and their commits are mentioned below.
+
+
+9bdbf7547a878509770a7a23141744b88bb93936 79.885 ms (mean) 80.197 ms(median)
