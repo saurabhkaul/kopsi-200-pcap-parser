@@ -23,14 +23,14 @@ pub enum PacketOrdering {
 }
 
 
-#[derive(Debug,Eq)]
-pub struct QuotePacket {
+#[derive(Debug,Eq,Clone,Copy)]
+pub struct QuotePacket<'a,const N:usize> {
     packet_time:NaiveTime,
-    issue_code: String,
-    bid_prices: Vec<String>,
-    bid_quantities: Vec<String>,
-    ask_prices: Vec<String>,
-    ask_quantities: Vec<String>,
+    issue_code: &'a str,
+    bid_prices: [&'a str;N],
+    bid_quantities: [&'a str;N],
+    ask_prices: [&'a str;N],
+    ask_quantities: [&'a str;N],
     quote_accept_time: NaiveTime,
     ordering: PacketOrdering,
     
@@ -38,7 +38,7 @@ pub struct QuotePacket {
 
 
 
-impl fmt::Display for QuotePacket {
+impl<'a,const N:usize> fmt::Display for QuotePacket<'a,N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}",
                self.packet_time.format("%H:%M:%S%.3f"),
@@ -63,13 +63,13 @@ impl fmt::Display for QuotePacket {
     }
 }
 
-impl PartialEq<Self> for QuotePacket {
+impl <'a,const N:usize> PartialEq<Self> for QuotePacket<'a,N> {
     fn eq(&self, other: &Self) -> bool {
         self.quote_accept_time == other.quote_accept_time
     }
 }
 
-impl Ord for QuotePacket {
+impl<'a,const N:usize> Ord for QuotePacket<'a,N> {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.ordering {
             PacketOrdering::Default => self.packet_time.cmp(&other.packet_time),
@@ -79,7 +79,7 @@ impl Ord for QuotePacket {
     }
 }
 
-impl PartialOrd<Self> for QuotePacket {
+impl <'a,const N:usize> PartialOrd<Self> for QuotePacket<'a,N> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -93,20 +93,21 @@ fn parse_str_in_packet(slice: &[u8]) -> Result<&str, PcapError<&[u8]>> {
     })
 }
 
-impl <'a>TryFrom<PacketDataWithTime<'a>> for QuotePacket {
+impl <'a,const N:usize>TryFrom<&PacketDataWithTime<'a>> for QuotePacket<'a,N> {
     type Error = PcapError<&'a [u8]>;
-    fn try_from(data:PacketDataWithTime<'a>) -> Result<Self, Self::Error> {
-        let (packet_time,data,ordering) = (data.packet_timestamp,data.data,data.ordering);
+    
+    fn try_from(data:&PacketDataWithTime<'a>) -> Result<Self, Self::Error> {
+        let (packet_time,data,ordering) = (data.packet_timestamp,&data.data,data.ordering);
         let data_slice = match data {
             PacketData::L2(d) => d,
             _ => return Err(PcapError::HeaderNotRecognized)
         };
         let mut offset = 42; //Packet data starts from the 42nd byte.
 
-        let data_type = parse_str_in_packet(&data_slice[offset..offset+2])?.to_string();
+        let data_type = parse_str_in_packet(&data_slice[offset..offset+2])?;
         offset += 2;
 
-        let information_type = parse_str_in_packet(&data_slice[offset..offset+2])?.to_string();
+        let information_type = parse_str_in_packet(&data_slice[offset..offset+2])?;
         offset += 2;
 
         let market_type = data_slice[offset] as char;
@@ -120,33 +121,35 @@ impl <'a>TryFrom<PacketDataWithTime<'a>> for QuotePacket {
                  ErrorKind::IsNot
              ))
         }else {
-            let issue_code = parse_str_in_packet(&data_slice[offset..offset+12])?.to_string();
+            let issue_code = parse_str_in_packet(&data_slice[offset..offset+12])?;
         
             offset += 24;
             
 
-            let mut bid_prices = Vec::with_capacity(5);
-            let mut bid_quantities = Vec::with_capacity(5);
-            let mut ask_prices = Vec::with_capacity(5);
-            let mut ask_quantities = Vec::with_capacity(5);
+            let mut bid_prices = ["";N];
+            let mut bid_quantities = ["";N];
+            let mut ask_prices = ["";N];
+            let mut ask_quantities = ["";N];
 
-            for _ in 0..5 {
+            for i in 0..5 {
 
-                bid_prices.push(parse_str_in_packet(&data_slice[offset..offset + 5])?.to_string());
+                // bid_prices.push(parse_str_in_packet(&data_slice[offset..offset + 5])?);
+                bid_prices[i] = parse_str_in_packet(&data_slice[offset..offset + 5])?;
                 offset += 5;
 
-                bid_quantities.push(parse_str_in_packet(&data_slice[offset..offset + 5])?.to_string());
+                // bid_quantities.push(parse_str_in_packet(&data_slice[offset..offset + 5])?);
+                bid_quantities[i] = parse_str_in_packet(&data_slice[offset..offset + 7])?;
                 offset += 7;
             }
             
             offset += 7;
 
-            for _ in 0..5 {
-                ask_prices.push(parse_str_in_packet(&data_slice[offset..offset+5])?.to_string());
-
+            for i in 0..5 {
+                // ask_prices.push(parse_str_in_packet(&data_slice[offset..offset+5])?.to_string());
+                ask_prices[i] = parse_str_in_packet(&data_slice[offset..offset + 5])?;
                 offset += 5;
-                ask_quantities.push(parse_str_in_packet(&data_slice[offset..offset+7])?.to_string());
-
+                // ask_quantities.push(parse_str_in_packet(&data_slice[offset..offset+7])?.to_string());
+                ask_quantities[i] = parse_str_in_packet(&data_slice[offset..offset + 7])?;
                 offset += 7;
             }
 
