@@ -11,7 +11,8 @@ mod models;
 pub use models::{PacketDataWithTime, PacketOrdering, QuotePacket};
 
 const DEFAULT_CAPACITY: usize = 65536;
-const BUFFER_SIZE: usize = 1024 * 1024;
+const WRITER_BUFFER_SIZE: usize = 1024 * 1024;
+const VEC_BUFFER_SIZE:usize = 64 * 1024;
 
 pub struct SortedPacketsBufWriter<W, const N: usize> 
 where
@@ -28,7 +29,7 @@ where
 {
     pub fn new(writer: W, capacity: usize) -> Self {
         Self {
-            writer: BufWriter::with_capacity(64 * 1024, writer),
+            writer: BufWriter::with_capacity(WRITER_BUFFER_SIZE, writer),
             buffer: Vec::with_capacity(capacity),
             capacity,
         }
@@ -36,7 +37,7 @@ where
 
 
     pub fn with_default_capacity(writer: W) -> Self {
-        Self::new(writer, BUFFER_SIZE)
+        Self::new(writer, VEC_BUFFER_SIZE)
     }
 
     pub fn push(&mut self, packet: QuotePacket<'static, N>) -> Result<()> {
@@ -60,11 +61,12 @@ where
             write!(self.writer, "{}\n", packet)?;
         }
         
+        self.writer.flush()?;
         Ok(())
     }
 
     pub fn finish(&mut self) -> Result<()> {
-        self.writer.flush()?;
+        self.flush_buffer()?;
         Ok(())
     }
 }
