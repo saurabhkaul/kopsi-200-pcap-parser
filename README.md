@@ -83,3 +83,46 @@ Summary
 - Packet time ordering: 69.7 ms
 - Quote accept time ordering: 75.8 ms
 
+### Architecture Summary + Perf Techniques Discussion. 
+The architecture is very simple. We parse the file -> Collect packets -> Sort them by Quote Accept Time (if the optional flag is passed) -> Print them.
+
+The parsing and printing logic has been separated into 2 threads to avoid blocking parsing & printing syscalls.
+
+The other main objective was to remove all heap allocations, for this the heapless crate was used.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           Main Thread                                │
+│  ┌─────────────┐    ┌──────────────┐    ┌───────────────────────┐   │
+│  │ File I/O    │───▶│ PCAP Parser  │───▶│ Packet Filter (B6034) │   │
+│  │ BufReader   │    │ 64KB buffer  │    │ QuotePacket::try_from │   │
+│  │ 64KB buffer │    │              │    │                       │   │
+│  └─────────────┘    └──────────────┘    └───────────┬───────────┘   │
+│                                                      │               │
+│                                          mpsc::channel (unbounded)   │
+│                                                      │               │
+└──────────────────────────────────────────────────────┼───────────────┘
+                                                       ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                          Print Thread                                │
+│  ┌───────────────────┐    ┌─────────────┐    ┌─────────────────┐    │
+│  │ HeaplessVec<512>  │───▶│ Sort Buffer │───▶│ BufWriter 64KB  │    │
+│  │ (for -r flag)     │    │ (batch)     │    │ stdout          │    │
+│  └───────────────────┘    └─────────────┘    └─────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Two-thread pipeline:**
+- **Parser thread**: Reads pcap, filters quote packets, sends via channel
+- **Print thread**: Receives packets, optionally sorts by quote accept time, writes to stdout
+
+**Zero-heap data structures:**
+- `HeaplessString<N>` for fixed-size fields (issue code, prices, quantities)
+- `HeaplessVec<QuotePacket, 512>` for sort buffer (stack-allocated)
+
+
+Performance Techniques Discussion
+1. Using direct byte writing instead of Display trait for QuotePackets, since fmt was taking more time.
+2. Skipping utf8 validation but checking for ascii, which gives correct output and is faster. Not checking for ascii resulted in incorrect output.
+3. Batch printing instead of printing every line, reducing as many print syscalls as possible.
+4. Benching the full program with hyperfine and cargo flamegraph, analyzing the flamegraph, ideating fixes, validating with hyperfine - repeat.
