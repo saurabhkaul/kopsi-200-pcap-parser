@@ -1,6 +1,8 @@
 # kopsi-200-pcap-parser
 A pcap parser that extracts market data from kopsi 200 packets, in rust 🦀
 
+This is a submission for a hiring challenge by Tsuru Capital, the details of which are here https://www.tsurucapital.com/en/code-sample.html
+
 To run this program, simply cd into dir and run
 
 `cargo run --release` for default ordering of packets.
@@ -59,3 +61,4 @@ Summary (Generated for both)
     
     
 Basically without outputting to terminal (least overhead) we are getting 37.7ms and 44.5ms for both workloads.
+
