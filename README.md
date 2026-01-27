@@ -61,16 +61,16 @@ hyperfine --warmup 3 --cleanup 'sleep 0.1' --show-output \
 **Results:**
 ```
 Benchmark 1: with-output
-Time (mean ± σ):      89.6 ms ±  15.9 ms    [User: 18.1 ms, System: 21.9 ms]
-  Range (min … max):    72.3 ms … 124.5 ms    38 runs
+Time (mean ± σ):      93.4 ms ±  16.4 ms    [User: 18.2 ms, System: 22.1 ms]
+  Range (min … max):    75.6 ms … 123.6 ms    34 runs
 
 Benchmark 2: with-output-quote-time-ordering
-Time (mean ± σ):      89.8 ms ±   9.8 ms    [User: 46.9 ms, System: 24.1 ms]
-  Range (min … max):    72.8 ms … 102.8 ms    28 runs
+Time (mean ± σ):      98.4 ms ±  17.4 ms    [User: 24.5 ms, System: 21.1 ms]
+  Range (min … max):    73.6 ms … 124.9 ms    25 runs
 
 Summary
 with-output ran
-    1.10 ± 0.20 times faster than with-output-quote-time-ordering
+  1.14 ± 0.26 times faster than with-output-quote-time-ordering
 ```
 
 ### Performance Summary
@@ -80,6 +80,6 @@ with-output ran
 - Quote accept time ordering: 14.5 ms
 
 **Worst-case performance (minimum times, Terminal I/O overhead):**
-- Packet time ordering: 73.2 ms
-- Quote accept time ordering: 72.8 ms
+- Packet time ordering: 75.6 ms
+- Quote accept time ordering: 73.6 ms
 
