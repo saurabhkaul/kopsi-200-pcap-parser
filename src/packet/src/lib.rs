@@ -1,98 +1,90 @@
 use anyhow::Result;
-
+use std::sync::mpsc;
+use std::thread;
 use chrono::{TimeZone, Utc};
 use chrono_tz::Asia::Seoul;
 use pcap_parser::data::get_packetdata;
 use pcap_parser::{create_reader, PcapBlockOwned, PcapError, PcapHeader};
 use std::fs::File;
-use std::io::{stdout, BufReader, BufWriter, Write};
+use std::io::{BufReader, BufWriter, Stdout, Write, stdout};
+use heapless::Vec as HeaplessVec;
 use std::path::PathBuf;
 mod models;
 pub use models::{PacketDataWithTime, PacketOrdering, QuotePacket};
 
-const DEFAULT_CAPACITY: usize = 65536;
-const WRITER_BUFFER_SIZE: usize = 1024 * 1024;
-const VEC_BUFFER_SIZE:usize = 64 * 1024;
 
-pub struct SortedPacketsBufWriter<W, const N: usize> 
-where
-    W: Write,
-{
-    writer: BufWriter<W>,
-    buffer: Vec<QuotePacket<'static, N>>,
-    capacity: usize,
-}
 
-impl<W, const N: usize> SortedPacketsBufWriter<W, N>
-where
-    W: Write,
-{
-    pub fn new(writer: W, capacity: usize) -> Self {
-        Self {
-            writer: BufWriter::with_capacity(WRITER_BUFFER_SIZE, writer),
-            buffer: Vec::with_capacity(capacity),
-            capacity,
-        }
+fn print_worker_default_ordering(rx: mpsc::Receiver<QuotePacket>) {
+    let stdout = stdout();
+    let mut out = stdout.lock();
+    while let Ok(qp) = rx.recv() {
+        writeln!(out, "{}", qp).expect("should be able to print");
     }
-
-
-    pub fn with_default_capacity(writer: W) -> Self {
-        Self::new(writer, VEC_BUFFER_SIZE)
-    }
-
-    pub fn push(&mut self, packet: QuotePacket<'static, N>) -> Result<()> {
-        if self.buffer.len() >= self.capacity {
-            self.flush_buffer()?;
-        }
-        
-        
-        self.buffer.push(packet);
-        Ok(())
-    }
-
-    fn flush_buffer(&mut self) -> Result<()> {
-        if self.buffer.is_empty() {
-            return Ok(());
-        }
-
-        self.buffer.sort_unstable();
-
-        for packet in self.buffer.drain(..) {
-            write!(self.writer, "{}\n", packet)?;
-        }
-        
-        self.writer.flush()?;
-        Ok(())
-    }
-
-    pub fn finish(&mut self) -> Result<()> {
-        self.flush_buffer()?;
-        Ok(())
-    }
-}
-impl<W,const N:usize> Drop for SortedPacketsBufWriter<W,N>
-where
-    W: Write
-{
-    fn drop(&mut self) {
-        let _ = self.finish();
-    }
+    out.flush().expect("should flush at last");
 }
 
 
-unsafe fn make_static_packet<const N: usize>(packet: QuotePacket<'_, N>) -> QuotePacket<'static, N> {
-    std::mem::transmute(packet)
+fn print_worker_quote_accept_time_ordering(rx: mpsc::Receiver<QuotePacket>) {
+    let stdout = stdout();
+    let mut out = stdout.lock();
+    let mut buffer_that_sorts:HeaplessVec<QuotePacket,100> = HeaplessVec::new();
+    
+    loop {
+            match rx.recv() {
+                Ok(item) => {
+                    // Push until full
+                    if buffer_that_sorts.push(item.clone()).is_err() {
+                        // buffer full → sort + drain
+                        buffer_that_sorts.sort();
+    
+                        for item in buffer_that_sorts.drain(..) {
+                            writeln!(out, "{}", item)
+                                .expect("stdout write failed");
+                        }
+    
+                        // retry push (now guaranteed to succeed)
+                        buffer_that_sorts.push(item).unwrap();
+                    }
+                }
+    
+                // Channel closed → flush remaining items
+                Err(_) => {
+                    if !buffer_that_sorts.is_empty() {
+                        buffer_that_sorts.sort();
+                        for item in buffer_that_sorts.drain(..) {
+                            writeln!(out, "{}", item)
+                                .expect("stdout write failed");
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    
+        out.flush().expect("final flush failed");
+    
+    // while let Ok(qp) = rx.recv() {
+    //     buffer_that_sorts.push(qp)
+    //     // writeln!(buffer_that_sorts, "{}", qp).expect("should be able to print");
+    // }
+    // out.flush().expect("should flush at last");
 }
 
 
 #[allow(unused_assignments, unused_variables)]
 pub fn read_pcap_file(path_buf: PathBuf, ordering: PacketOrdering) -> Result<()> {
+    let (tx, rx) = mpsc::channel::<QuotePacket>();
+    let handle = thread::spawn(move || {
+        match ordering {
+            PacketOrdering::Default => print_worker_default_ordering(rx),
+            PacketOrdering::QuoteAcceptTime => print_worker_quote_accept_time_ordering(rx),
+        }
+    });
     let mut num_blocks = 0;
     let file = File::open(path_buf)?;
     let reader = BufReader::new(file);
-    let mut pcap_reader = create_reader(DEFAULT_CAPACITY, reader)?;
+    let mut pcap_reader = create_reader(65536, reader)?;
 
-    let mut sorted_writer = SortedPacketsBufWriter::<_, 5>::with_default_capacity(stdout());
 
     loop {
         match pcap_reader.next() {
@@ -122,11 +114,9 @@ pub fn read_pcap_file(path_buf: PathBuf, ordering: PacketOrdering) -> Result<()>
 
                             
                             if let Ok(quote_packet) =
-                                QuotePacket::<5>::try_from(&packet_data_with_time)
-                            {
-                                let static_packet = unsafe { make_static_packet(quote_packet) };
-                                sorted_writer.push(static_packet)?;
-                            }
+                                QuotePacket::try_from(&packet_data_with_time){
+                                    let _ = tx.send(quote_packet);
+                                }
                         }
                     }
                     PcapBlockOwned::NG(_) => unreachable!(),
@@ -140,5 +130,7 @@ pub fn read_pcap_file(path_buf: PathBuf, ordering: PacketOrdering) -> Result<()>
             Err(e) => panic!("Error {:?} while reading file", e),
         }
     }
+    drop(tx);
+    let _ = handle.join();
     Ok(())
 }
