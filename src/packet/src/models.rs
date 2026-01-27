@@ -197,7 +197,13 @@ impl PartialOrd<Self> for QuotePacket {
 
 #[inline(always)]
 fn parse_ascii_str_in_packet(slice: &[u8]) -> Result<&str, PcapError<&[u8]>> {
-    str::from_utf8(slice).map_err(|_e| PcapError::NomError(slice, ErrorKind::Verify))
+    // ASCII check is faster than full UTF-8 validation, and ASCII is valid UTF-8
+    if slice.is_ascii() {
+        // SAFETY: ASCII bytes are always valid UTF-8
+        Ok(unsafe { std::str::from_utf8_unchecked(slice) })
+    } else {
+        Err(PcapError::NomError(slice, ErrorKind::Verify))
+    }
 }
 
 impl<'a> TryFrom<&'a PacketDataWithTime<'a>> for QuotePacket {
