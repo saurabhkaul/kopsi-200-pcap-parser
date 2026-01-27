@@ -39,15 +39,16 @@ hyperfine --warmup 3 --cleanup 'sleep 0.1' \
 **Results:**
 ```
 Benchmark 1: no-output
-  Time (mean ± σ):      43.5 ms ±   3.0 ms    [User: 42.0 ms, System: 12.1 ms]
-  Range (min … max):    37.7 ms …  50.5 ms    52 runs
+  Time (mean ± σ):      21.4 ms ±   2.7 ms    [User: 19.5 ms, System: 8.6 ms]
+  Range (min … max):    15.7 ms …  27.8 ms    117 runs
 
 Benchmark 2: no-output-quote-time-order
-  Time (mean ± σ):      48.6 ms ±   2.9 ms    [User: 46.7 ms, System: 12.4 ms]
-  Range (min … max):    44.5 ms …  57.1 ms    54 runs
+  Time (mean ± σ):      19.8 ms ±   2.7 ms    [User: 21.8 ms, System: 6.0 ms]
+  Range (min … max):    14.5 ms …  28.2 ms    133 runs
 
 Summary
-  no-output ran 1.12 ± 0.10 times faster than no-output-quote-time-order
+  no-output-quote-time-order ran
+    1.08 ± 0.20 times faster than no-output
 ```
 
 #### 2. With Terminal Output (Terminal Printing Overhead)
@@ -60,19 +61,25 @@ hyperfine --warmup 3 --cleanup 'sleep 0.1' --show-output \
 **Results:**
 ```
 Benchmark 1: with-output
-  Time (mean ± σ):     159.2 ms ±  28.4 ms    [User: 45.0 ms, System: 27.8 ms]
-  Range (min … max):    98.4 ms … 188.3 ms    21 runs
+Time (mean ± σ):      89.6 ms ±  15.9 ms    [User: 18.1 ms, System: 21.9 ms]
+  Range (min … max):    72.3 ms … 124.5 ms    38 runs
 
 Benchmark 2: with-output-quote-time-ordering
-  Time (mean ± σ):     158.1 ms ±  28.1 ms    [User: 53.4 ms, System: 29.3 ms]
-  Range (min … max):   107.6 ms … 196.8 ms    15 runs
+Time (mean ± σ):      89.8 ms ±   9.8 ms    [User: 46.9 ms, System: 24.1 ms]
+  Range (min … max):    72.8 ms … 102.8 ms    28 runs
 
 Summary
-  with-output-quote-time-ordering ran 1.04 ± 0.24 times faster than with-output
+with-output ran
+    1.10 ± 0.20 times faster than with-output-quote-time-ordering
 ```
 
 ### Performance Summary
 
-**Best-case performance (minimum times, no I/O overhead):**
-- Packet time ordering: 37.7 ms
-- Quote accept time ordering: 44.5 ms
+**Best-case performance (minimum times, no Terminal I/O overhead):**
+- Packet time ordering: 15.7 ms
+- Quote accept time ordering: 14.5 ms
+
+**Worst-case performance (minimum times, Terminal I/O overhead):**
+- Packet time ordering: 73.2 ms
+- Quote accept time ordering: 72.8 ms
+
