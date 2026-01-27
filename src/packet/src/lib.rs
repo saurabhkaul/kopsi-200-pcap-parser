@@ -21,38 +21,28 @@ fn print_worker_default_ordering(rx: mpsc::Receiver<QuotePacket>) {
     out.flush().expect("should flush at last");
 }
 
+
 fn print_worker_quote_accept_time_ordering(rx: mpsc::Receiver<QuotePacket>) {
     let stdout = stdout();
-    let mut out = BufWriter::with_capacity(65536, stdout.lock());
-    let mut buffer_that_sorts: HeaplessVec<QuotePacket, 500> = HeaplessVec::new();
+    let mut out = BufWriter::with_capacity(65_536, stdout.lock());
 
-    loop {
-        match rx.recv() {
-            Ok(item) => {
-                // Push until full
-                if buffer_that_sorts.push(item.clone()).is_err() {
-                    // buffer full → sort + drain
-                    buffer_that_sorts.sort();
-
-                    for item in buffer_that_sorts.drain(..) {
-                        item.write_to(&mut out).expect("stdout write failed");
-                    }
-
-                    // retry push (now guaranteed to succeed)
-                    buffer_that_sorts.push(item).unwrap();
-                }
+    let mut buffer:HeaplessVec<QuotePacket, 512> = HeaplessVec::new();
+    while let Ok(item) = rx.recv() {
+        // If full, flush first
+        if buffer.is_full() {
+            buffer.sort();
+            for item in buffer.drain(..) {
+                item.write_to(&mut out).expect("stdout write failed");
             }
+        }
+        buffer.push(item).unwrap();
+    }
 
-            // Channel closed → flush remaining items
-            Err(_) => {
-                if !buffer_that_sorts.is_empty() {
-                    buffer_that_sorts.sort();
-                    for item in buffer_that_sorts.drain(..) {
-                        item.write_to(&mut out).expect("stdout write failed");
-                    }
-                }
-                break;
-            }
+    // Flush leftovers
+    if !buffer.is_empty() {
+        buffer.sort();
+        for item in buffer.drain(..) {
+            item.write_to(&mut out).expect("stdout write failed");
         }
     }
 
