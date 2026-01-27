@@ -116,7 +116,7 @@ The other main objective was to remove all heap allocations, for this the heaple
 - **Parser thread**: Reads pcap, filters quote packets, sends via channel
 - **Print thread**: Receives packets, optionally sorts by quote accept time, writes to stdout
 
-**Zero-heap data structures:**
+**Stack based data structures:**
 - `HeaplessString<N>` for fixed-size fields (issue code, prices, quantities)
 - `HeaplessVec<QuotePacket, 512>` for sort buffer (stack-allocated)
 
