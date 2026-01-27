@@ -24,7 +24,7 @@ fn print_worker_default_ordering(rx: mpsc::Receiver<QuotePacket>) {
 fn print_worker_quote_accept_time_ordering(rx: mpsc::Receiver<QuotePacket>) {
     let stdout = stdout();
     let mut out = BufWriter::with_capacity(65536, stdout.lock());
-    let mut buffer_that_sorts: HeaplessVec<QuotePacket, 65536> = HeaplessVec::new();
+    let mut buffer_that_sorts: HeaplessVec<QuotePacket, 500> = HeaplessVec::new();
 
     loop {
         match rx.recv() {
