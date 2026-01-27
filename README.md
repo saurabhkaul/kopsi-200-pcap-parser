@@ -112,7 +112,7 @@ The other main objective was to remove all heap allocations, for this the heaple
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-Two-thread pipeline:**
+**Two-thread pipeline:**
 - **Parser thread**: Reads pcap, filters quote packets, sends via channel
 - **Print thread**: Receives packets, optionally sorts by quote accept time, writes to stdout
 
