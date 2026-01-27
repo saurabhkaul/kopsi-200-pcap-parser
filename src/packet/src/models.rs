@@ -166,7 +166,7 @@ impl<'a> TryFrom<&'a PacketDataWithTime<'a>> for QuotePacket {
                     offset += 50;
 
 
-                    let quote_accept_time_string = parse_ascii_str_in_packet(&data_slice[offset..offset+8])?.to_string();
+                    let quote_accept_time_string = parse_ascii_str_in_packet(&data_slice[offset..offset+8])?;
 
                     let hours = u32::from_str_radix(&quote_accept_time_string[0..2], 10).unwrap();
                     let minutes = u32::from_str_radix(&quote_accept_time_string[2..4], 10).unwrap();
