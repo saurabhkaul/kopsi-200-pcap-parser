@@ -80,7 +80,7 @@ impl QuotePacket {
         pos += 1;
 
         // Write quote_accept_time as HH:MM:SS.mmmmmm
-        pos += write_time_micros(&mut buf[pos..], self.quote_accept_time);
+        pos += write_time_millis(&mut buf[pos..], self.quote_accept_time);
         buf[pos] = b' ';
         pos += 1;
 
