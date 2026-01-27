@@ -29,7 +29,7 @@ sudo cargo bench --bench benchmark -- --verbose
 
 The following benchmarks compare both ordering modes using hyperfine to measure the binary directly.
 
-#### 1. Without Terminal Output (Pure Processing Speed)
+#### 1. Without Terminal Output (No Terminal Printing Overhead)
 ```bash
 hyperfine --warmup 3 --cleanup 'sleep 0.1' \
   -n 'no-output' './target/release/kopsi-200-pcap-parser > /dev/null' \
@@ -50,7 +50,7 @@ Summary
   no-output ran 1.12 ± 0.10 times faster than no-output-quote-time-order
 ```
 
-#### 2. With Terminal Output (Real-World Performance)
+#### 2. With Terminal Output (Terminal Printing Overhead)
 ```bash
 hyperfine --warmup 3 --cleanup 'sleep 0.1' --show-output \
   -n 'with-output' './target/release/kopsi-200-pcap-parser' \
