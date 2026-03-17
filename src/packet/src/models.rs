@@ -68,6 +68,9 @@ pub struct QuotePacket {
 // }
 
 impl QuotePacket {
+    pub fn packet_time(&self) -> NaiveTime { self.packet_time }
+    pub fn quote_accept_time(&self) -> NaiveTime { self.quote_accept_time }
+
     /// Fast direct write to a byte buffer, bypassing fmt machinery.
     #[inline]
     pub fn write_to<W: Write>(&self, w: &mut W) -> std::io::Result<()> {

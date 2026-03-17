@@ -1,61 +1,89 @@
 use anyhow::Result;
-use chrono::{TimeZone, Utc};
+use chrono::{Duration, TimeZone, Utc};
 use chrono_tz::Asia::Seoul;
 use heapless::Vec as HeaplessVec;
 use pcap_parser::data::get_packetdata;
 use pcap_parser::{create_reader, PcapBlockOwned, PcapError, PcapHeader};
 use std::fs::File;
-use std::io::{stdout, BufReader, BufWriter, Write};
+use std::io::{BufReader, BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
 mod models;
 pub use models::{PacketDataWithTime, PacketOrdering, QuotePacket};
 
-fn print_worker_default_ordering(rx: mpsc::Receiver<QuotePacket>) {
-    let stdout = stdout();
-    let mut out = BufWriter::with_capacity(65536, stdout.lock());
+fn print_worker_default_ordering<W: Write>(rx: mpsc::Receiver<QuotePacket>, out: W) -> W {
+    let mut out = BufWriter::with_capacity(65536, out);
     while let Ok(qp) = rx.recv() {
         qp.write_to(&mut out).expect("should be able to print");
     }
     out.flush().expect("should flush at last");
+    out.into_inner().unwrap_or_else(|_| panic!("BufWriter into_inner failed"))
 }
 
+// Upper bound on packets within any 3-second window of packet_time.
+// The challenge guarantees |quote_accept_time - packet_time| <= 3s, so this
+// bounds how many packets can ever be in-flight at once.
+const WINDOW_CAPACITY: usize = 3500;
 
-fn print_worker_quote_accept_time_ordering(rx: mpsc::Receiver<QuotePacket>) {
-    let stdout = stdout();
-    let mut out = BufWriter::with_capacity(65_536, stdout.lock());
+fn print_worker_quote_accept_time_ordering<W: Write>(rx: mpsc::Receiver<QuotePacket>, out: W) -> W {
+    let mut out = BufWriter::with_capacity(65_536, out);
+    let mut buffer: HeaplessVec<QuotePacket, WINDOW_CAPACITY> = HeaplessVec::new();
+    // Track the minimum quote_accept_time in the buffer so we can decide
+    // whether a flush is needed in O(1) without scanning.
+    let mut min_qat: Option<chrono::NaiveTime> = None;
 
-    let mut buffer:HeaplessVec<QuotePacket, 512> = HeaplessVec::new();
-    while let Ok(item) = rx.recv() {
-        // If full, flush first
-        if buffer.is_full() {
+    for item in rx {
+        let pt = item.packet_time();
+        let qat = item.quote_accept_time();
+        min_qat = Some(min_qat.map_or(qat, |m: chrono::NaiveTime| m.min(qat)));
+        buffer.push(item).expect("window buffer full — increase WINDOW_CAPACITY");
+
+        // Any buffered packet with quote_accept_time < (current_packet_time - 3s)
+        // is guaranteed to precede all future packets in quote_accept_time order,
+        // because future packets have packet_time >= pt and therefore
+        // quote_accept_time >= pt - 3s.
+        let flush_threshold = pt - Duration::seconds(3);
+        if min_qat.is_some_and(|m| m < flush_threshold) {
             buffer.sort();
-            for item in buffer.drain(..) {
-                item.write_to(&mut out).expect("stdout write failed");
+            let flush_count = buffer.partition_point(|p| p.quote_accept_time() < flush_threshold);
+            for i in 0..flush_count {
+                buffer[i].write_to(&mut out).expect("stdout write failed");
             }
+            let new_len = buffer.len() - flush_count;
+            buffer.rotate_left(flush_count);
+            buffer.truncate(new_len);
+            min_qat = buffer.iter().map(|p| p.quote_accept_time()).min();
         }
-        buffer.push(item).unwrap();
     }
 
-    // Flush leftovers
-    if !buffer.is_empty() {
-        buffer.sort();
-        for item in buffer.drain(..) {
-            item.write_to(&mut out).expect("stdout write failed");
-        }
+    // Flush all remaining packets in sorted order.
+    buffer.sort();
+    for item in buffer.drain(..) {
+        item.write_to(&mut out).expect("stdout write failed");
     }
 
     out.flush().expect("final flush failed");
+    out.into_inner().unwrap_or_else(|_| panic!("BufWriter into_inner failed"))
 }
 
 #[allow(unused_assignments, unused_variables)]
-pub fn read_pcap_file(path_buf: PathBuf, ordering: PacketOrdering) -> Result<()> {
+pub fn read_pcap_file<W: Write + Send + 'static>(
+    path_buf: PathBuf,
+    ordering: PacketOrdering,
+    out: W,
+) -> Result<W> {
     let (tx, rx) = mpsc::channel::<QuotePacket>();
-    let handle = thread::spawn(move || match ordering {
-        PacketOrdering::Default => print_worker_default_ordering(rx),
-        PacketOrdering::QuoteAcceptTime => print_worker_quote_accept_time_ordering(rx),
-    });
+    // 16 MB stack for the print worker — needed for large HeaplessVec<QuotePacket, CHUNK_SIZE>
+    // allocations in the quote-accept-time ordering path.
+    const PRINT_WORKER_STACK_SIZE: usize = 16 * 1024 * 1024;
+    let handle = thread::Builder::new()
+        .stack_size(PRINT_WORKER_STACK_SIZE)
+        .spawn(move || match ordering {
+            PacketOrdering::Default => print_worker_default_ordering(rx, out),
+            PacketOrdering::QuoteAcceptTime => print_worker_quote_accept_time_ordering(rx, out),
+        })
+        .expect("failed to spawn print worker thread");
     let mut num_blocks = 0;
     let file = File::open(path_buf)?;
     let reader = BufReader::new(file);
@@ -105,6 +133,6 @@ pub fn read_pcap_file(path_buf: PathBuf, ordering: PacketOrdering) -> Result<()>
         }
     }
     drop(tx);
-    let _ = handle.join();
-    Ok(())
+    let out = handle.join().expect("print worker panicked");
+    Ok(out)
 }

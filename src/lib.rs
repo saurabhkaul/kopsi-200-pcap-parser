@@ -1,4 +1,5 @@
 pub use packet::{read_pcap_file, PacketOrdering};
+use std::io::stdout;
 use std::path::PathBuf;
 
 pub const PCAP_FILE_PATH: &str = "test/fixtures/mdf-kospi200.20110216-0.pcap 2";
@@ -9,7 +10,7 @@ pub fn runner() -> Result<(), Box<dyn std::error::Error>> {
         true => PacketOrdering::QuoteAcceptTime,
         false => PacketOrdering::Default,
     };
-    read_pcap_file(PathBuf::from(PCAP_FILE_PATH), ordering)?;
+    read_pcap_file(PathBuf::from(PCAP_FILE_PATH), ordering, stdout())?;
 
     Ok(())
 }
