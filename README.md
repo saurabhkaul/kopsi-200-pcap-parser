@@ -22,114 +22,141 @@ cargo run --release -- -r
 
 ### Using Criterion
 ```bash
-sudo cargo bench --bench benchmark -- --verbose
+cargo bench --bench benchmark -- --quiet
+```
+
+Criterion measures the library path in-process, so it excludes binary startup and shell/process scheduling overhead.
+
+**Latest results:**
+
+```text
+read_pcap_file/default_to_vec
+  9.43-9.60 ms
+
+read_pcap_file/quote_accept_time_to_vec
+  12.40-12.70 ms
+
+read_pcap_file/default_to_sink
+  8.23-8.47 ms
+
+read_pcap_file/quote_accept_time_to_sink
+  9.24-9.52 ms
+```
+
+The benchmark also includes phase-level timings for the current parser:
+
+```text
+open_mmap
+  28.9-29.8 us
+
+find_validate_packets
+  1.46-1.54 ms
+
+format_rows
+  3.42-3.65 ms
+
+sort_and_write_to_vec
+  2.12-2.27 ms
 ```
 
 ### Using Hyperfine
 
-The following benchmarks compare both ordering modes using hyperfine to measure the binary directly.
+Hyperfine measures the full binary, including process startup, dynamic linking, file open/mmap, stdout setup, and OS scheduling. It is useful for end-to-end wall time, but it is not a clean parser-only measurement.
 
-#### 1. Without Terminal Output (No Terminal Printing Overhead)
+#### Without Terminal Output
 ```bash
-hyperfine --warmup 3 --cleanup 'sleep 0.1' \
-  -n 'no-output' './target/release/kopsi-200-pcap-parser > /dev/null' \
-  -n 'no-output-quote-time-order' './target/release/kopsi-200-pcap-parser -r > /dev/null'
+cargo build --release
+
+hyperfine --warmup 10 --runs 50 \
+  --prepare 'cat target/release/kopsi-200-pcap-parser "test/fixtures/mdf-kospi200.20110216-0.pcap 2" > /dev/null' \
+  './target/release/kopsi-200-pcap-parser > /dev/null' \
+  './target/release/kopsi-200-pcap-parser -r > /dev/null'
 ```
 
-**Results:**
+**Latest results:**
 ```
-Benchmark 1: no-output
-  Time (mean ± σ):      22.6 ms ±   3.9 ms    [User: 16.3 ms, System: 10.6 ms]
-  Range (min … max):    11.7 ms …  31.9 ms    157 runs
+Benchmark 1: ./target/release/kopsi-200-pcap-parser > /dev/null
+  Time (mean ± σ):      21.7 ms ±   9.3 ms    [User: 10.0 ms, System: 9.2 ms]
+  Range (min … max):     5.0 ms …  40.4 ms    50 runs
 
-Benchmark 2: no-output-quote-time-order
-  Time (mean ± σ):      28.8 ms ±   4.2 ms    [User: 23.2 ms, System: 11.4 ms]
-  Range (min … max):    19.2 ms …  36.2 ms    82 runs
+Benchmark 2: ./target/release/kopsi-200-pcap-parser -r > /dev/null
+  Time (mean ± σ):      27.5 ms ±   2.5 ms    [User: 13.4 ms, System: 11.2 ms]
+  Range (min … max):    22.2 ms …  33.9 ms    50 runs
 
 Summary
-  no-output ran
-    1.27 ± 0.28 times faster than no-output-quote-time-order
+  ./target/release/kopsi-200-pcap-parser > /dev/null ran
+    1.27 ± 0.56 times faster than ./target/release/kopsi-200-pcap-parser -r > /dev/null
 ```
 
-#### 2. With Terminal Output (Terminal Printing Overhead)
+#### With Terminal Output
 ```bash
-hyperfine --warmup 3 --cleanup 'sleep 0.1' --show-output \
-  -n 'with-output' './target/release/kopsi-200-pcap-parser' \
-  -n 'with-output-quote-time-ordering' './target/release/kopsi-200-pcap-parser -r'
+hyperfine --warmup 3 --runs 10 --show-output \
+  -n default './target/release/kopsi-200-pcap-parser' \
+  -n quote-time './target/release/kopsi-200-pcap-parser -r'
 ```
 
-**Results:**
-```
-Benchmark 1: with-output
-Time (mean ± σ):     124.6 ms ±   2.5 ms    [User: 20.7 ms, System: 35.5 ms]
-  Range (min … max):   120.2 ms … 128.3 ms    23 runs
+Terminal rendering is much slower than redirecting to `/dev/null`, so these numbers are mostly terminal I/O behavior rather than parser behavior.
 
-Benchmark 2: with-output-quote-time-ordering
-Time (mean ± σ):     133.0 ms ±   3.2 ms    [User: 30.9 ms, System: 35.1 ms]
-  Range (min … max):   129.4 ms … 139.3 ms    21 runs
+**Latest Ghostty results:**
+
+```text
+Benchmark 1: default
+  Time (mean +/- sigma):      70.2 ms +/- 8.5 ms    [User: 5.9 ms, System: 5.2 ms]
+  Range (min ... max):        60.3 ms ... 86.2 ms    10 runs
+
+Benchmark 2: quote-time
+  Time (mean +/- sigma):      76.5 ms +/- 6.4 ms    [User: 8.5 ms, System: 5.8 ms]
+  Range (min ... max):        64.8 ms ... 88.3 ms    10 runs
 
 Summary
-  with-output ran
-    1.11 ± 0.27 times faster than with-output-quote-time-ordering
+  default ran
+    1.09 +/- 0.16 times faster than quote-time
 ```
 
 ### Performance Summary
 
-**Best-case performance (minimum times, no Terminal I/O overhead):**
-- Packet time ordering: 11.7 ms
-- Quote accept time ordering: 19.2 ms
+**In-process parser performance:**
+- Packet time ordering: about 8-10 ms
+- Quote accept time ordering: about 9-10 ms when writing to a sink, about 12-13 ms when collecting reordered output into a `Vec<u8>`
 
-**Worst-case performance (minimum times, Terminal I/O overhead):**
-- Packet time ordering: 120.2 ms
-- Quote accept time ordering: 129.4 ms
+**End-to-end binary wall time:**
+- Packet time ordering: highly variable, about 21.7 ms mean in the latest hyperfine run
+- Quote accept time ordering: about 27.5 ms mean in the latest hyperfine run
+
+**Ghostty terminal-rendering wall time:**
+- Packet time ordering: about 70.2 ms mean
+- Quote accept time ordering: about 76.5 ms mean
 
 ### Architecture Summary + Perf Techniques Discussion.
-The architecture is very simple. We parse the file -> filter B6034 packets -> optionally sort by quote accept time -> print.
 
-Parsing and printing are on separate threads so file I/O and stdout writes don't block each other.
-
-The goal was to avoid heap allocations. `HeaplessString<N>` covers the fixed-width fields. The sort buffer is a custom stack-allocated sliding window described below.
+1. Memory-map the fixture pcap with `memmap2`.
+2. Use `memchr::memmem::Finder` to locate quote packets beginning with `B6034`.
+3. Validate the surrounding pcap record length.
+4. Format rows into one byte buffer using direct byte writes and fixed-width payload slices.
+5. For `-r`, sort row offsets by quote accept time and write the corresponding row slices through a buffered writer.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                           Main Thread                                │
-│  ┌─────────────┐    ┌──────────────┐    ┌───────────────────────┐   │
-│  │ File I/O    │───▶│ PCAP Parser  │───▶│ Packet Filter (B6034) │   │
-│  │ BufReader   │    │ 64KB buffer  │    │ QuotePacket::try_from │   │
-│  │ 64KB buffer │    │              │    │                       │   │
-│  └─────────────┘    └──────────────┘    └───────────┬───────────┘   │
-│                                                      │               │
-│                                          mpsc::channel (unbounded)   │
-│                                                      │               │
-└──────────────────────────────────────────────────────┼───────────────┘
-                                                       ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Print Thread                                │
-│  ┌──────────────────────────┐    ┌─────────────────┐                │
-│  │ SlidingWindowBuffer      │───▶│ BufWriter 64KB  │                │
-│  │ (stack, insertion-sorted │    │ stdout          │                │
-│  │  for -r flag)            │    │                 │                │
-│  └──────────────────────────┘    └─────────────────┘                │
+│ mmap pcap -> memmem B6034 scan -> record validation -> row format    │
+│                                      │                              │
+│ default ordering                     └── write full output buffer    │
+│ quote accept ordering (-r)           └── sort row offsets, write rows│
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Two-thread pipeline:**
-- **Parser thread**: Reads pcap, filters quote packets, sends via channel
-- **Print thread**: Receives packets, optionally sorts by quote accept time, writes to stdout
+Performance techniques currently used:
 
-**Stack-based data structures:**
-- `HeaplessString<N>` for fixed-size fields (issue code, prices, quantities)
-- `SlidingWindowBuffer` — a custom stack-allocated array (`[MaybeUninit<QuotePacket>; 7000]`) with `head` and `len` tracking. New packets are inserted in sorted order via binary search. Flushing advances the `head` integer — no data is ever moved. Compaction (one `memmove` back to slot 0) happens at most once per 3500 inserts.
+1. `memmap2` avoids reading the whole file through buffered `read` calls.
+2. `memchr::memmem` provides a SIMD-capable substring search for `B6034`.
+3. Output is written as bytes, not through `format!` or `Display`.
+4. Fixed-width price and quantity fields are copied directly from the payload instead of parsed and re-formatted.
+5. Packet timestamps are written as KST milliseconds directly.
+6. Quote accept time is copied from the payload and padded to milliseconds.
+7. The `-r` path sorts compact row offsets instead of sorting row data.
+8. The CLI wraps stdout in `BufWriter` to avoid excessive write syscalls.
 
-**Quote accept time sorting:**
+Current likely remaining bottlenecks:
 
-The challenge guarantees `|quote_accept_time - packet_time| <= 3s`. Since the pcap is in packet_time order, any packet arriving with `packet_time = T` means all future packets have `quote_accept_time >= T - 3s`. So buffered packets with `quote_accept_time < T - 3s` are safe to flush — no future packet can sort before them.
-
-Each incoming packet is inserted into the buffer via binary search to maintain sorted order. Because `quote_accept_time ≈ packet_time` and packets arrive in packet_time order, the insertion point is almost always at the tail. The binary search finds it in O(log n) with zero elements to shift. When the flush threshold is crossed, the already-sorted prefix is written out and `head` is advanced.
-
-
-Performance Techniques Discussion
-1. Using direct byte writing instead of Display trait for QuotePackets, since fmt was taking more time.
-2. Skipping utf8 validation but checking for ascii, which gives correct output and is faster. Not checking for ascii resulted in incorrect output.
-3. Batch printing instead of printing every line, reducing as many print syscalls as possible.
-4. Benching the full program with hyperfine and cargo flamegraph, analyzing the flamegraph, ideating fixes, validating with hyperfine - repeat.
+1. `find_validate_packets` still scans the mmap for `B6034`; walking pcap records directly could be faster and stricter.
+2. `format_rows` is still the largest isolated formatting phase.
+3. End-to-end wall time is dominated by process startup, OS scheduling, and stdout/file-descriptor setup once the parser itself is in the 4-9 ms range.

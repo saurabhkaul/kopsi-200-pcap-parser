@@ -4,8 +4,7 @@ use kopsi_200_pcap_parser::{read_pcap_file, PacketOrdering};
 
 #[test]
 fn test_read_pcap_default_ordering_is_correct() {
-    let buf = read_pcap_file(common::fixture_path(), PacketOrdering::Default, Vec::new())
-        .expect("should parse without error");
+    let buf = common::parser_output(&[]);
     let output = String::from_utf8(buf).expect("output should be valid UTF-8");
 
     let packet_times: Vec<&str> = output
@@ -17,7 +16,10 @@ fn test_read_pcap_default_ordering_is_correct() {
         })
         .collect();
 
-    assert!(!packet_times.is_empty(), "should have parsed at least one packet");
+    assert!(
+        !packet_times.is_empty(),
+        "should have parsed at least one packet"
+    );
 
     for window in packet_times.windows(2) {
         assert!(
@@ -31,12 +33,7 @@ fn test_read_pcap_default_ordering_is_correct() {
 
 #[test]
 fn test_read_pcap_quote_accept_time_ordering_is_correct() {
-    let buf = read_pcap_file(
-        common::fixture_path(),
-        PacketOrdering::QuoteAcceptTime,
-        Vec::new(),
-    )
-    .expect("should parse without error");
+    let buf = common::parser_output(&["-r"]);
     let output = String::from_utf8(buf).expect("output should be valid UTF-8");
 
     let quote_accept_times: Vec<&str> = output
