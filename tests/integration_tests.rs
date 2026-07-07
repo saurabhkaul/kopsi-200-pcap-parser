@@ -71,3 +71,15 @@ fn test_read_pcap_nonexistent_file_returns_error() {
     );
     assert!(result.is_err());
 }
+
+
+//Writing a simple non performant parser that we are sure is correct and we match it with current implementation's results
+#[test]
+fn test_has_file_been_parsed_and_sorted_correctly(){
+    let buf = common::parser_output(&["-r"]);
+    struct Packet{
+        
+    }
+    
+    
+}

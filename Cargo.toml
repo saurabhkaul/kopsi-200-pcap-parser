@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 memmap2 = "0.9.11"
 memchr = "2.8.2"
+core_affinity = "0.8.3"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

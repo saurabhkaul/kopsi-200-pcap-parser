@@ -31,32 +31,20 @@ Criterion measures the library path in-process, so it excludes binary startup an
 
 ```text
 read_pcap_file/default_to_vec
-  9.43-9.60 ms
+  4.4059-4.5300 ms
+  1.2056-1.2396 GiB/s
 
 read_pcap_file/quote_accept_time_to_vec
-  12.40-12.70 ms
+  5.9749-5.9960 ms
+  932.71-936.00 MiB/s
 
 read_pcap_file/default_to_sink
-  8.23-8.47 ms
+  4.0378-4.0528 ms
+  1.3476-1.3526 GiB/s
 
 read_pcap_file/quote_accept_time_to_sink
-  9.24-9.52 ms
-```
-
-The benchmark also includes phase-level timings for the current parser:
-
-```text
-open_mmap
-  28.9-29.8 us
-
-find_validate_packets
-  1.46-1.54 ms
-
-format_rows
-  3.42-3.65 ms
-
-sort_and_write_to_vec
-  2.12-2.27 ms
+  5.8076-5.8253 ms
+  960.05-962.97 MiB/s
 ```
 
 ### Using Hyperfine
@@ -68,7 +56,7 @@ Hyperfine measures the full binary, including process startup, dynamic linking, 
 cargo build --release
 
 hyperfine --warmup 10 --runs 50 \
-  --prepare 'cat target/release/kopsi-200-pcap-parser "test/fixtures/mdf-kospi200.20110216-0.pcap 2" > /dev/null' \
+  --prepare 'cat target/release/kopsi-200-pcap-parser "fixtures/mdf-kospi200.20110216-0.pcap 2" > /dev/null' \
   './target/release/kopsi-200-pcap-parser > /dev/null' \
   './target/release/kopsi-200-pcap-parser -r > /dev/null'
 ```
@@ -76,16 +64,41 @@ hyperfine --warmup 10 --runs 50 \
 **Latest results:**
 ```
 Benchmark 1: ./target/release/kopsi-200-pcap-parser > /dev/null
-  Time (mean ± σ):      21.7 ms ±   9.3 ms    [User: 10.0 ms, System: 9.2 ms]
-  Range (min … max):     5.0 ms …  40.4 ms    50 runs
+  Time (mean ± σ):      12.2 ms ±   1.2 ms    [User: 7.2 ms, System: 5.7 ms]
+  Range (min … max):     9.8 ms …  13.8 ms    50 runs
 
 Benchmark 2: ./target/release/kopsi-200-pcap-parser -r > /dev/null
-  Time (mean ± σ):      27.5 ms ±   2.5 ms    [User: 13.4 ms, System: 11.2 ms]
-  Range (min … max):    22.2 ms …  33.9 ms    50 runs
+  Time (mean ± σ):      15.3 ms ±   1.7 ms    [User: 9.5 ms, System: 6.6 ms]
+  Range (min … max):    12.4 ms …  17.5 ms    50 runs
 
 Summary
   ./target/release/kopsi-200-pcap-parser > /dev/null ran
-    1.27 ± 0.56 times faster than ./target/release/kopsi-200-pcap-parser -r > /dev/null
+    1.25 ± 0.18 times faster than ./target/release/kopsi-200-pcap-parser -r > /dev/null
+```
+
+#### With File Output
+```bash
+hyperfine --warmup 10 --runs 50 \
+  --prepare 'cat target/release/kopsi-200-pcap-parser "fixtures/mdf-kospi200.20110216-0.pcap 2" > /dev/null' \
+  './target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out' \
+  './target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out'
+```
+
+This writes the full `2,864,716` byte / `16,004` row output to a real file.
+
+**Latest results:**
+```text
+Benchmark 1: ./target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out
+  Time (mean ± σ):      14.8 ms ±   0.9 ms    [User: 7.6 ms, System: 7.6 ms]
+  Range (min … max):    11.5 ms …  16.3 ms    50 runs
+
+Benchmark 2: ./target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out
+  Time (mean ± σ):      18.1 ms ±   1.2 ms    [User: 10.1 ms, System: 8.4 ms]
+  Range (min … max):    14.4 ms …  19.9 ms    50 runs
+
+Summary
+  ./target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out ran
+    1.23 ± 0.11 times faster than ./target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out
 ```
 
 #### With Terminal Output
@@ -97,35 +110,35 @@ hyperfine --warmup 3 --runs 10 --show-output \
 
 Terminal rendering is much slower than redirecting to `/dev/null`, so these numbers are mostly terminal I/O behavior rather than parser behavior.
 
-**Latest Ghostty results:**
+**Latest Alacritty results:**
 
 ```text
 Benchmark 1: default
-  Time (mean +/- sigma):      70.2 ms +/- 8.5 ms    [User: 5.9 ms, System: 5.2 ms]
-  Range (min ... max):        60.3 ms ... 86.2 ms    10 runs
+  Time (mean ± σ):      57.0 ms ±   0.9 ms    [User: 5.3 ms, System: 4.5 ms]
+  Range (min … max):    55.7 ms …  58.3 ms    10 runs
 
 Benchmark 2: quote-time
-  Time (mean +/- sigma):      76.5 ms +/- 6.4 ms    [User: 8.5 ms, System: 5.8 ms]
-  Range (min ... max):        64.8 ms ... 88.3 ms    10 runs
+  Time (mean ± σ):      60.9 ms ±   0.9 ms    [User: 7.6 ms, System: 5.6 ms]
+  Range (min … max):    59.5 ms …  62.3 ms    10 runs
 
 Summary
   default ran
-    1.09 +/- 0.16 times faster than quote-time
+    1.07 ± 0.02 times faster than quote-time
 ```
 
 ### Performance Summary
 
 **In-process parser performance:**
-- Packet time ordering: about 8-10 ms
-- Quote accept time ordering: about 9-10 ms when writing to a sink, about 12-13 ms when collecting reordered output into a `Vec<u8>`
+- Packet time ordering: about 4.0-4.5 ms
+- Quote accept time ordering: about 5.8-6.0 ms
 
 **End-to-end binary wall time:**
-- Packet time ordering: highly variable, about 21.7 ms mean in the latest hyperfine run
-- Quote accept time ordering: about 27.5 ms mean in the latest hyperfine run
+- Packet time ordering: about 12.2 ms to `/dev/null`, about 14.8 ms to a file
+- Quote accept time ordering: about 15.3 ms to `/dev/null`, about 18.1 ms to a file
 
-**Ghostty terminal-rendering wall time:**
-- Packet time ordering: about 70.2 ms mean
-- Quote accept time ordering: about 76.5 ms mean
+**Alacritty terminal-rendering wall time:**
+- Packet time ordering: about 57.0 ms mean
+- Quote accept time ordering: about 60.9 ms mean
 
 ### Architecture Summary + Perf Techniques Discussion.
 
@@ -157,6 +170,6 @@ Performance techniques currently used:
 
 Current likely remaining bottlenecks:
 
-1. `find_validate_packets` still scans the mmap for `B6034`; walking pcap records directly could be faster and stricter.
-2. `format_rows` is still the largest isolated formatting phase.
+1. Packet discovery still scans the mmap for `B6034`; walking pcap records directly could be faster and stricter.
+2. Row formatting remains a likely hot path because every quote row is copied into the output buffer.
 3. End-to-end wall time is dominated by process startup, OS scheduling, and stdout/file-descriptor setup once the parser itself is in the 4-9 ms range.

@@ -11,5 +11,5 @@ fn main() -> io::Result<()> {
         PacketOrdering::Default
     };
 
-    read_pcap_file(PCAP_FILE_PATH, ordering, BufWriter::new(io::stdout())).map(|_| ())
+    read_pcap_file(PCAP_FILE_PATH, ordering, BufWriter::with_capacity(3 * 1024 * 1024, io::stdout()) ).map(|_| ())
 }
