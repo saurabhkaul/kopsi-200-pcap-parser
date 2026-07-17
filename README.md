@@ -31,20 +31,20 @@ Criterion measures the library path in-process, so it excludes binary startup an
 
 ```text
 read_pcap_file/default_to_vec
-  3.9095-3.9339 ms
-  1.3883-1.3970 GiB/s
+  3.8767-3.9661 ms
+  1.3771-1.4088 GiB/s
 
 read_pcap_file/quote_accept_time_to_vec
-  4.7699-5.0921 ms
-  1.0725-1.1450 GiB/s
+  5.5030-5.5339 ms
+  1010.6-1016.3 MiB/s
 
 read_pcap_file/default_to_sink
-  1.1511-1.1730 ms
-  4.6561-4.7445 GiB/s
+  1.5969-1.6121 ms
+  3.3878-3.4200 GiB/s
 
 read_pcap_file/quote_accept_time_to_sink
-  2.3099-2.4555 ms
-  2.2242-2.3644 GiB/s
+  3.1535-3.1802 ms
+  1.7173-1.7319 GiB/s
 ```
 
 ### Using Hyperfine
@@ -64,16 +64,16 @@ hyperfine --warmup 10 --runs 50 \
 **Latest results:**
 ```
 Benchmark 1: ./target/release/kopsi-200-pcap-parser > /dev/null
-  Time (mean ± σ):      10.6 ms ±   2.5 ms    [User: 10.3 ms, System: 12.0 ms]
-  Range (min … max):     7.4 ms …  14.6 ms    50 runs
+  Time (mean ± σ):      11.5 ms ±   0.7 ms    [User: 12.1 ms, System: 13.1 ms]
+  Range (min … max):    10.6 ms …  13.0 ms    50 runs
 
 Benchmark 2: ./target/release/kopsi-200-pcap-parser -r > /dev/null
-  Time (mean ± σ):       9.7 ms ±   0.4 ms    [User: 10.9 ms, System: 11.9 ms]
-  Range (min … max):     9.0 ms …  10.8 ms    50 runs
+  Time (mean ± σ):      12.5 ms ±   0.5 ms    [User: 14.1 ms, System: 14.7 ms]
+  Range (min … max):    11.7 ms …  13.9 ms    50 runs
 
 Summary
-  ./target/release/kopsi-200-pcap-parser -r > /dev/null ran
-    1.09 ± 0.26 times faster than ./target/release/kopsi-200-pcap-parser > /dev/null
+  ./target/release/kopsi-200-pcap-parser > /dev/null ran
+    1.09 ± 0.08 times faster than ./target/release/kopsi-200-pcap-parser -r > /dev/null
 ```
 
 #### With File Output
@@ -89,19 +89,17 @@ This writes the full `2,864,716` byte / `16,004` row output to a real file.
 **Latest results:**
 ```text
 Benchmark 1: ./target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out
-  Time (mean ± σ):      13.4 ms ±   6.7 ms    [User: 10.3 ms, System: 13.2 ms]
-  Range (min … max):     8.4 ms …  55.4 ms    50 runs
+  Time (mean ± σ):      13.7 ms ±   0.9 ms    [User: 12.3 ms, System: 15.1 ms]
+  Range (min … max):    12.0 ms …  16.2 ms    50 runs
 
 Benchmark 2: ./target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out
-  Time (mean ± σ):      11.5 ms ±   1.4 ms    [User: 10.6 ms, System: 13.1 ms]
-  Range (min … max):     8.8 ms …  14.5 ms    50 runs
+  Time (mean ± σ):      15.0 ms ±   0.8 ms    [User: 14.1 ms, System: 16.5 ms]
+  Range (min … max):    13.4 ms …  16.8 ms    50 runs
 
 Summary
-  ./target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out ran
-    1.17 ± 0.60 times faster than ./target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out
+  ./target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out ran
+    1.09 ± 0.09 times faster than ./target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out
 ```
-
-The default file-output run had one large outlier, so the range is more useful than the mean for that line.
 
 #### With Terminal Output
 ```bash
@@ -116,31 +114,31 @@ Terminal rendering is much slower than redirecting to `/dev/null`, so these numb
 
 ```text
 Benchmark 1: default
-  Time (mean ± σ):      53.5 ms ±   1.9 ms    [User: 7.8 ms, System: 9.2 ms]
-  Range (min … max):    51.1 ms …  55.9 ms    10 runs
+  Time (mean ± σ):      66.3 ms ±   6.9 ms    [User: 10.2 ms, System: 12.1 ms]
+  Range (min … max):    58.5 ms …  77.8 ms    10 runs
 
 Benchmark 2: quote-time
-  Time (mean ± σ):      52.1 ms ±   0.8 ms    [User: 9.2 ms, System: 10.4 ms]
-  Range (min … max):    51.4 ms …  53.6 ms    10 runs
+  Time (mean ± σ):      64.4 ms ±   4.4 ms    [User: 12.3 ms, System: 13.5 ms]
+  Range (min … max):    59.7 ms …  71.1 ms    10 runs
 
 Summary
   quote-time ran
-    1.03 ± 0.04 times faster than default
+    1.03 ± 0.13 times faster than default
 ```
 
 ### Performance Summary
 
 **In-process parser performance:**
-- Packet time ordering: about 1.2 ms to `io::sink()`, about 3.9 ms when collecting bytes
-- Quote accept time ordering: about 2.3-2.5 ms to `io::sink()`, about 4.8-5.1 ms when collecting bytes
+- Packet time ordering: about 1.6 ms to `io::sink()`, about 3.9 ms when collecting bytes
+- Quote accept time ordering: about 3.2 ms to `io::sink()`, about 5.5 ms when collecting bytes
 
 **End-to-end binary wall time:**
-- Packet time ordering: about 10.6 ms to `/dev/null`, about 13.4 ms to a file in the latest run
-- Quote accept time ordering: about 9.7 ms to `/dev/null`, about 11.5 ms to a file in the latest run
+- Packet time ordering: about 11.5 ms to `/dev/null`, about 13.7 ms to a file in the latest run
+- Quote accept time ordering: about 12.5 ms to `/dev/null`, about 15.0 ms to a file in the latest run
 
 **Alacritty terminal-rendering wall time:**
-- Packet time ordering: about 53.5 ms mean
-- Quote accept time ordering: about 52.1 ms mean
+- Packet time ordering: about 66.3 ms mean
+- Quote accept time ordering: about 64.4 ms mean
 
 ### Architecture
 

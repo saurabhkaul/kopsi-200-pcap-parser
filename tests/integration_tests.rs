@@ -246,7 +246,7 @@ fn reference_quote_accept_time_output() -> Vec<String> {
         .collect()
 }
 
-//Test our performance parser against a simple parser and compare outputs 
+//Test our performance parser against a simple parser and compare outputs
 #[test]
 fn test_has_file_been_parsed_and_sorted_correctly() {
     let actual = String::from_utf8(common::parser_output(&["-r"]))

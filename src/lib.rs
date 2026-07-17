@@ -9,6 +9,11 @@ use std::{
     thread,
 };
 
+// Packet layout constants:
+// 16 bytes pcap per-packet record header
+// 14 bytes Ethernet header
+// 20 bytes IPv4 header
+//  8 bytes UDP header
 const HDR_TO_PAYLOAD: usize = 16 + 14 + 20 + 8;
 const PAYLOAD_LEN: usize = 215;
 const RECORD_DATA_LEN: u32 = (14 + 20 + 8 + PAYLOAD_LEN) as u32;
@@ -28,26 +33,47 @@ pub enum PacketOrdering {
     QuoteAcceptTime,
 }
 
+#[derive(Clone, Copy)]
+struct QuoteAcceptIndex {
+    accept_time_cs: u32,
+    global_pos: u32,
+    local_start: u32,
+    local_len: u32,
+}
+
+#[derive(Clone, Copy)]
+struct MergedQuoteAcceptIndex {
+    accept_time_cs: u32,
+    global_pos: u32,
+    worker_id: usize,
+    local_start: u32,
+    local_len: u32,
+}
+
 #[inline]
 fn accept_time_cs(data: &[u8]) -> u32 {
     let hh = aa(&data[206..208]);
     let mm = aa(&data[208..210]);
     let ss = aa(&data[210..212]);
     let cc = aa(&data[212..214]);
-    hh * 360_000 + mm * 6_000 + ss * 100 + cc
+    hh * 360_000 + mm * 6_000 + ss * 100 + cc // centiseconds since midnight
 }
 
+/// Manually parse exactly two ASCII digits, used for HH, MM, SS, etc.
+/// Assumes both bytes are valid digits in 0..9.
 #[inline]
 fn aa(b: &[u8]) -> u32 {
     (b[0] - b'0') as u32 * 10 + (b[1] - b'0') as u32
 }
 
+// Write a 2-digit number into the output buffer.
 #[inline]
 fn push_2d(out: &mut Vec<u8>, n: u64) {
     out.push(b'0' + (n / 10) as u8);
     out.push(b'0' + (n % 10) as u8);
 }
 
+// Write a 3-digit number into the output buffer.
 #[inline]
 fn push_3d(out: &mut Vec<u8>, n: u64) {
     out.push(b'0' + (n / 100 % 10) as u8);
@@ -59,6 +85,7 @@ fn push_3d(out: &mut Vec<u8>, n: u64) {
 /// in centiseconds-of-day (heap/sort key).
 #[inline]
 fn write_quote(out: &mut Vec<u8>, ts_sec: u32, ts_usec: u32, data: &[u8]) -> u32 {
+    // Packet time.
     let secs = ts_sec as u64 + 9 * 3600;
     push_2d(out, (secs / 3600) % 24);
     out.push(b':');
@@ -69,6 +96,7 @@ fn write_quote(out: &mut Vec<u8>, ts_sec: u32, ts_usec: u32, data: &[u8]) -> u32
     push_3d(out, ts_usec as u64 / 1000);
     out.push(b' ');
 
+    // Quote accept time.
     out.extend_from_slice(&data[206..208]);
     out.push(b':');
     out.extend_from_slice(&data[208..210]);
@@ -79,18 +107,22 @@ fn write_quote(out: &mut Vec<u8>, ts_sec: u32, ts_usec: u32, data: &[u8]) -> u32
     out.push(b'0');
     out.push(b' ');
 
+    // Issue code.
     let code_end = data[5..17]
         .iter()
         .rposition(|&b| b != b' ')
         .map_or(0, |i| i + 1);
     out.extend_from_slice(&data[5..5 + code_end]);
 
+    // Bids.
     for i in (0..5usize).rev() {
         out.push(b' ');
         out.extend_from_slice(&data[34 + i * 12..41 + i * 12]);
         out.push(b'@');
         out.extend_from_slice(&data[29 + i * 12..34 + i * 12]);
     }
+
+    // Asks.
     for i in 0..5usize {
         out.push(b' ');
         out.extend_from_slice(&data[101 + i * 12..108 + i * 12]);
@@ -164,20 +196,16 @@ pub fn read_pcap_file<W: Write + Send + 'static>(
     // Each worker owns [base, own_end) and scans [base, scan_end) where the
     // extra OVERLAP bytes allow patterns straddling the split to be found.
     // A match at global position gpos is claimed by the worker that owns it:
-    //   gpos ∈ [base, own_end)
+    //   gpos ∈ [base, own_end) (gpos = global byte position of a found B6034)
     // The next worker starts at own_end, so no match is double-counted.
     let nworkers = thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1);
-    let chunk_own = (file_len + nworkers - 1) / nworkers; // bytes owned per worker
-    let cap_per_work = (16_004 * 180 / nworkers).max(1024); // pre-alloc per worker buf
+    let chunk_own = (file_len + nworkers - 1) / nworkers; // ceil(file_len / nworkers): bytes owned per worker
+    let cap_per_work = (16_004 * 180 / nworkers).max(1024); // ~16k rows * ~180 bytes, split per worker
 
     match ordering {
-        // ── Default: emit in pcap arrival order ──────────────────────────────
-        //
-        // Each worker scans its slice and formats into a local buf.
-        // Collecting bufs in worker order == collecting in file order == arrival order.
-        // No sort, no merge: just concatenate and send each buf as a channel chunk.
+        //Print packets on packet time
         PacketOrdering::Default => {
             let results: Vec<Vec<u8>> = thread::scope(|s| {
                 let mmap = &mmap;
@@ -207,11 +235,20 @@ pub fn read_pcap_file<W: Write + Send + 'static>(
                                 let gpos = base + local_pos;
                                 if gpos >= own_end {
                                     break;
-                                } // past ownership
+                                }
+
+                                //The worker scans slightly past its owned range because of overlap,
+                                // but it only owns matches before `own_end`.
+                                // If the match is beyond that, stop.
                                 if gpos < HDR_TO_PAYLOAD {
                                     continue;
                                 }
+                                //Avoid underflow.
+                                //To validate the pcap record, we later subtract `HDR_TO_PAYLOAD`,
+                                //so this match must be far enough into the file
                                 let rec = gpos - HDR_TO_PAYLOAD;
+
+                                //Compute the start offset of the pcap packet record.
                                 if u32_at(rec + 8) != RECORD_DATA_LEN {
                                     continue;
                                 }
@@ -232,6 +269,7 @@ pub fn read_pcap_file<W: Write + Send + 'static>(
                 handles.into_iter().map(|h| h.join().unwrap()).collect()
             });
 
+            //Send the Packets in main thread buffer onto the printing thread buffer
             for buf in results {
                 if !buf.is_empty() {
                     tx.send(buf).map_err(|_| {
@@ -242,31 +280,35 @@ pub fn read_pcap_file<W: Write + Send + 'static>(
         }
 
         // ── QuoteAcceptTime: parallel scan + sort by accept-time ─────────────
-        //
+        //Each worker scans one slice of the mmap, formats any valid quote packets it owns into a local byte buffer,
+        // and records where each row landed so the rows can later be sorted.
         // Each worker also builds an index:
-        //   (accept_time_cs, global_pos, local_start, local_len)
+        //   QuoteAcceptIndex { accept_time_cs, global_pos, local_start, local_len }
         //
         // After the scope, all index entries are merged and sorted by
         // (accept_time_cs, global_pos).  global_pos is unique across workers
         // and equals byte arrival-order, giving a deterministic tiebreaker.
         //
-        // Lines are then gathered directly from per-worker bufs into flush_buf
-        // and sent to the printer — no extra flat copy of the full output needed.
         PacketOrdering::QuoteAcceptTime => {
-            type WorkerOut = (Vec<u8>, Vec<(u32, u32, u32, u32)>);
+            type WorkerOut = (Vec<u8>, Vec<QuoteAcceptIndex>);
 
             let results: Vec<WorkerOut> = thread::scope(|s| {
                 let mmap = &mmap;
                 let handles: Vec<_> = (0..nworkers)
                     .map(|i| {
                         s.spawn(move || -> WorkerOut {
+                            //Multiplying so that we can get the ith chunk for the ith worker
                             let base = i * chunk_own;
                             if base >= file_len {
                                 return (Vec::new(), Vec::new());
                             }
+                            //If there is no file data for this worker, return empty output and empty index.
                             let own_end = (base + chunk_own).min(file_len);
+                            //scan_end` extends slightly past that by `OVERLAP`,
+                            // so the worker can still see a `B6034` marker crossing a chunk boundary.
                             let scan_end = (own_end + OVERLAP).min(file_len);
 
+                            //Helper to read a 4-byte integer from the mmap using the pcap file’s endianness.
                             let u32_at = |j: usize| -> u32 {
                                 let b: [u8; 4] = mmap[j..j + 4].try_into().unwrap();
                                 if le {
@@ -278,24 +320,32 @@ pub fn read_pcap_file<W: Write + Send + 'static>(
 
                             let finder = memmem::Finder::new(b"B6034");
                             let mut buf = Vec::with_capacity(cap_per_work);
+                            //preallocate index for roughly
+                            //(number of output bytes / average row size) + small headroom
                             let mut index = Vec::with_capacity(cap_per_work / 180 + 16);
 
+                            //Find every `B6034` in this worker’s scan range.
                             for local_pos in finder.find_iter(&mmap[base..scan_end]) {
                                 let gpos = base + local_pos;
                                 if gpos >= own_end {
                                     break;
                                 }
+                                //Ignore overlap matches owned by the next worker.
                                 if gpos < HDR_TO_PAYLOAD {
                                     continue;
                                 }
+                                //Avoid underflow before subtracting header size.
                                 let rec = gpos - HDR_TO_PAYLOAD;
+                                //Compute start of the pcap packet record.
                                 if u32_at(rec + 8) != RECORD_DATA_LEN {
                                     continue;
                                 }
+                                //Validate captured packet length, filtering false `B6034` matches.
                                 if gpos + PAYLOAD_LEN > file_len {
                                     continue;
                                 }
                                 let start = buf.len() as u32;
+                                //Remember where this row starts inside the worker buffer.
                                 let key = write_quote(
                                     &mut buf,
                                     u32_at(rec),
@@ -303,7 +353,12 @@ pub fn read_pcap_file<W: Write + Send + 'static>(
                                     &mmap[gpos..gpos + PAYLOAD_LEN],
                                 );
                                 let len = buf.len() as u32 - start;
-                                index.push((key, gpos as u32, start, len));
+                                index.push(QuoteAcceptIndex {
+                                    accept_time_cs: key,
+                                    global_pos: gpos as u32,
+                                    local_start: start,
+                                    local_len: len,
+                                });
                             }
                             (buf, index)
                         })
@@ -312,26 +367,40 @@ pub fn read_pcap_file<W: Write + Send + 'static>(
                 handles.into_iter().map(|h| h.join().unwrap()).collect()
             });
 
-            // Collect all index entries and sort by (accept_time_cs, global_pos).
+            //At this point, each worker has returned: (Vec<u8>, Vec<QuoteAcceptIndex>)
+            //`Vec<u8>` = that worker’s formatted rows
+            //`Vec<QuoteAcceptIndex>` = row metadata pointing into that worker’s buffer
+
+            //Collect all indexes of each worker
             let total_idx: usize = results.iter().map(|(_, idx)| idx.len()).sum();
-            // (accept_time_cs, global_pos, worker_id, local_start, local_len)
-            let mut all_idx: Vec<(u32, u32, usize, u32, u32)> = Vec::with_capacity(total_idx);
+            let mut all_idx: Vec<MergedQuoteAcceptIndex> = Vec::with_capacity(total_idx);
             for (tid, (_, idx)) in results.iter().enumerate() {
-                for &(key, gpos, s, l) in idx {
-                    all_idx.push((key, gpos, tid, s, l));
+                for item in idx {
+                    all_idx.push(MergedQuoteAcceptIndex {
+                        accept_time_cs: item.accept_time_cs,
+                        global_pos: item.global_pos,
+                        worker_id: tid,
+                        local_start: item.local_start,
+                        local_len: item.local_len,
+                    });
                 }
             }
-            all_idx.sort_unstable_by_key(|&(key, gpos, _, _, _)| (key, gpos));
+            //Sort everything by index
+            all_idx.sort_unstable_by_key(|item| (item.accept_time_cs, item.global_pos));
 
             // Gather sorted lines from per-worker bufs and send in chunks.
             let mut flush_buf: Vec<u8> = Vec::with_capacity(CHUNK_BYTES + 256);
-            for &(_, _, tid, s, l) in &all_idx {
-                let src = &results[tid].0;
-                flush_buf.extend_from_slice(&src[s as usize..s as usize + l as usize]);
+            for item in &all_idx {
+                let src = &results[item.worker_id].0;
+                let start = item.local_start as usize;
+                let end = start + item.local_len as usize;
+                flush_buf.extend_from_slice(&src[start..end]);
                 if flush_buf.len() >= CHUNK_BYTES {
                     flush_chunk(&tx, &mut flush_buf)?;
                 }
             }
+
+            //Final chunk
             if !flush_buf.is_empty() {
                 tx.send(flush_buf).map_err(|_| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "printer thread exited")
