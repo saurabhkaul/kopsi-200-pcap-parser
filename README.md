@@ -6,7 +6,7 @@ This is a submission for a hiring challenge by Tsuru Capital. Challenge details:
 
 ## Running the Program
 
-The KOSPI 200 pcap file is located in `test/fixtures`.
+The KOSPI 200 pcap file is located in `fixtures`.
 
 **Default ordering (by packet time):**
 ```bash
@@ -31,20 +31,20 @@ Criterion measures the library path in-process, so it excludes binary startup an
 
 ```text
 read_pcap_file/default_to_vec
-  4.4059-4.5300 ms
-  1.2056-1.2396 GiB/s
+  3.9095-3.9339 ms
+  1.3883-1.3970 GiB/s
 
 read_pcap_file/quote_accept_time_to_vec
-  5.9749-5.9960 ms
-  932.71-936.00 MiB/s
+  4.7699-5.0921 ms
+  1.0725-1.1450 GiB/s
 
 read_pcap_file/default_to_sink
-  4.0378-4.0528 ms
-  1.3476-1.3526 GiB/s
+  1.1511-1.1730 ms
+  4.6561-4.7445 GiB/s
 
 read_pcap_file/quote_accept_time_to_sink
-  5.8076-5.8253 ms
-  960.05-962.97 MiB/s
+  2.3099-2.4555 ms
+  2.2242-2.3644 GiB/s
 ```
 
 ### Using Hyperfine
@@ -64,16 +64,16 @@ hyperfine --warmup 10 --runs 50 \
 **Latest results:**
 ```
 Benchmark 1: ./target/release/kopsi-200-pcap-parser > /dev/null
-  Time (mean ± σ):      12.2 ms ±   1.2 ms    [User: 7.2 ms, System: 5.7 ms]
-  Range (min … max):     9.8 ms …  13.8 ms    50 runs
+  Time (mean ± σ):      10.6 ms ±   2.5 ms    [User: 10.3 ms, System: 12.0 ms]
+  Range (min … max):     7.4 ms …  14.6 ms    50 runs
 
 Benchmark 2: ./target/release/kopsi-200-pcap-parser -r > /dev/null
-  Time (mean ± σ):      15.3 ms ±   1.7 ms    [User: 9.5 ms, System: 6.6 ms]
-  Range (min … max):    12.4 ms …  17.5 ms    50 runs
+  Time (mean ± σ):       9.7 ms ±   0.4 ms    [User: 10.9 ms, System: 11.9 ms]
+  Range (min … max):     9.0 ms …  10.8 ms    50 runs
 
 Summary
-  ./target/release/kopsi-200-pcap-parser > /dev/null ran
-    1.25 ± 0.18 times faster than ./target/release/kopsi-200-pcap-parser -r > /dev/null
+  ./target/release/kopsi-200-pcap-parser -r > /dev/null ran
+    1.09 ± 0.26 times faster than ./target/release/kopsi-200-pcap-parser > /dev/null
 ```
 
 #### With File Output
@@ -89,17 +89,19 @@ This writes the full `2,864,716` byte / `16,004` row output to a real file.
 **Latest results:**
 ```text
 Benchmark 1: ./target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out
-  Time (mean ± σ):      14.8 ms ±   0.9 ms    [User: 7.6 ms, System: 7.6 ms]
-  Range (min … max):    11.5 ms …  16.3 ms    50 runs
+  Time (mean ± σ):      13.4 ms ±   6.7 ms    [User: 10.3 ms, System: 13.2 ms]
+  Range (min … max):     8.4 ms …  55.4 ms    50 runs
 
 Benchmark 2: ./target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out
-  Time (mean ± σ):      18.1 ms ±   1.2 ms    [User: 10.1 ms, System: 8.4 ms]
-  Range (min … max):    14.4 ms …  19.9 ms    50 runs
+  Time (mean ± σ):      11.5 ms ±   1.4 ms    [User: 10.6 ms, System: 13.1 ms]
+  Range (min … max):     8.8 ms …  14.5 ms    50 runs
 
 Summary
-  ./target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out ran
-    1.23 ± 0.11 times faster than ./target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out
+  ./target/release/kopsi-200-pcap-parser -r > /tmp/kopsi_hyperfine_quote.out ran
+    1.17 ± 0.60 times faster than ./target/release/kopsi-200-pcap-parser > /tmp/kopsi_hyperfine_default.out
 ```
+
+The default file-output run had one large outlier, so the range is more useful than the mean for that line.
 
 #### With Terminal Output
 ```bash
@@ -114,62 +116,51 @@ Terminal rendering is much slower than redirecting to `/dev/null`, so these numb
 
 ```text
 Benchmark 1: default
-  Time (mean ± σ):      57.0 ms ±   0.9 ms    [User: 5.3 ms, System: 4.5 ms]
-  Range (min … max):    55.7 ms …  58.3 ms    10 runs
+  Time (mean ± σ):      53.5 ms ±   1.9 ms    [User: 7.8 ms, System: 9.2 ms]
+  Range (min … max):    51.1 ms …  55.9 ms    10 runs
 
 Benchmark 2: quote-time
-  Time (mean ± σ):      60.9 ms ±   0.9 ms    [User: 7.6 ms, System: 5.6 ms]
-  Range (min … max):    59.5 ms …  62.3 ms    10 runs
+  Time (mean ± σ):      52.1 ms ±   0.8 ms    [User: 9.2 ms, System: 10.4 ms]
+  Range (min … max):    51.4 ms …  53.6 ms    10 runs
 
 Summary
-  default ran
-    1.07 ± 0.02 times faster than quote-time
+  quote-time ran
+    1.03 ± 0.04 times faster than default
 ```
 
 ### Performance Summary
 
 **In-process parser performance:**
-- Packet time ordering: about 4.0-4.5 ms
-- Quote accept time ordering: about 5.8-6.0 ms
+- Packet time ordering: about 1.2 ms to `io::sink()`, about 3.9 ms when collecting bytes
+- Quote accept time ordering: about 2.3-2.5 ms to `io::sink()`, about 4.8-5.1 ms when collecting bytes
 
 **End-to-end binary wall time:**
-- Packet time ordering: about 12.2 ms to `/dev/null`, about 14.8 ms to a file
-- Quote accept time ordering: about 15.3 ms to `/dev/null`, about 18.1 ms to a file
+- Packet time ordering: about 10.6 ms to `/dev/null`, about 13.4 ms to a file in the latest run
+- Quote accept time ordering: about 9.7 ms to `/dev/null`, about 11.5 ms to a file in the latest run
 
 **Alacritty terminal-rendering wall time:**
-- Packet time ordering: about 57.0 ms mean
-- Quote accept time ordering: about 60.9 ms mean
+- Packet time ordering: about 53.5 ms mean
+- Quote accept time ordering: about 52.1 ms mean
 
-### Architecture Summary + Perf Techniques Discussion.
+### Architecture
 
-1. Memory-map the fixture pcap with `memmap2`.
-2. Use `memchr::memmem::Finder` to locate quote packets beginning with `B6034`.
-3. Validate the surrounding pcap record length.
-4. Format rows into one byte buffer using direct byte writes and fixed-width payload slices.
-5. For `-r`, sort row offsets by quote accept time and write the corresponding row slices through a buffered writer.
+The parser maps the pcap once, splits the mapped bytes across worker threads, and searches each slice for `B6034` with a small overlap at the boundary so a marker is not missed. Each hit is still validated against the surrounding pcap record length before it is formatted.
+
+Rows are formatted as bytes directly into per-worker buffers. The code copies fixed-width fields from the payload instead of parsing and re-formatting prices and quantities.
+
+Default mode keeps packet arrival order by collecting worker buffers in file order. Quote-time mode builds a compact index per worker, merges those indexes, sorts by `(quote_accept_time, packet_position)`, and gathers the corresponding row bytes from the worker buffers.
+
+Output is handed to a printer thread through a bounded channel. The main binary also wraps stdout in a large `BufWriter`, so the parser does not do a syscall per row.
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│ mmap pcap -> memmem B6034 scan -> record validation -> row format    │
-│                                      │                              │
-│ default ordering                     └── write full output buffer    │
-│ quote accept ordering (-r)           └── sort row offsets, write rows│
-└─────────────────────────────────────────────────────────────────────┘
+mmap pcap
+  -> split into worker-owned byte ranges
+  -> memmem scan for B6034
+  -> validate pcap record length
+  -> format rows into per-worker buffers
+  -> default: emit worker buffers in file order
+  -> -r: merge/sort row indexes, gather sorted rows
+  -> printer thread
 ```
 
-Performance techniques currently used:
-
-1. `memmap2` avoids reading the whole file through buffered `read` calls.
-2. `memchr::memmem` provides a SIMD-capable substring search for `B6034`.
-3. Output is written as bytes, not through `format!` or `Display`.
-4. Fixed-width price and quantity fields are copied directly from the payload instead of parsed and re-formatted.
-5. Packet timestamps are written as KST milliseconds directly.
-6. Quote accept time is copied from the payload and padded to milliseconds.
-7. The `-r` path sorts compact row offsets instead of sorting row data.
-8. The CLI wraps stdout in `BufWriter` to avoid excessive write syscalls.
-
-Current likely remaining bottlenecks:
-
-1. Packet discovery still scans the mmap for `B6034`; walking pcap records directly could be faster and stricter.
-2. Row formatting remains a likely hot path because every quote row is copied into the output buffer.
-3. End-to-end wall time is dominated by process startup, OS scheduling, and stdout/file-descriptor setup once the parser itself is in the 4-9 ms range.
+The main remaining cost depends on how output is measured. Parser-only work is now in the low single-digit milliseconds. Full binary runs include process startup, mmap setup, thread scheduling, and stdout/file setup. Terminal runs are mostly terminal rendering; they are not a good proxy for parser speed.
