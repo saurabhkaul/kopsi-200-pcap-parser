@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-packet = {path = "src/packet"}
-chrono = "0.4.38"
+memmap2 = "0.9.11"
+memchr = "2.8.2"
+core_affinity = "0.8.3"
 
 [dev-dependencies]
+chrono = "0.4.38"
 criterion = { version = "0.5", features = ["html_reports"] }
+pcap-parser = { version = "0.16.0", features = ["data"] }
 
 [[bench]]
 name = "benchmark"

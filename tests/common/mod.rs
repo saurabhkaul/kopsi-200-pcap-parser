@@ -1,7 +1,17 @@
-use std::path::PathBuf;
+use std::process::Command;
 
-/// Path to the KOSPI 200 PCAP fixture used across integration tests.
-pub fn fixture_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("test/fixtures/mdf-kospi200.20110216-0.pcap 2")
+pub fn parser_output(args: &[&str]) -> Vec<u8> {
+    let output = Command::new(env!("CARGO_BIN_EXE_kopsi-200-pcap-parser"))
+        .args(args)
+        .output()
+        .expect("should run parser binary");
+
+    assert!(
+        output.status.success(),
+        "parser failed with status {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    output.stdout
 }
