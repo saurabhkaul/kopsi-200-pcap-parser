@@ -110,20 +110,20 @@ hyperfine --warmup 3 --runs 10 --show-output \
 
 Terminal rendering is much slower than redirecting to `/dev/null`, so these numbers are mostly terminal I/O behavior rather than parser behavior.
 
-**Latest Alacritty results:**
+**Latest Ghostty 1.3.1 results:**
 
 ```text
 Benchmark 1: default
-  Time (mean ± σ):      66.3 ms ±   6.9 ms    [User: 10.2 ms, System: 12.1 ms]
-  Range (min … max):    58.5 ms …  77.8 ms    10 runs
+  Time (mean ± σ):      36.2 ms ±   4.9 ms    [User: 11.4 ms, System: 12.6 ms]
+  Range (min … max):    30.3 ms …  43.8 ms    10 runs
 
 Benchmark 2: quote-time
-  Time (mean ± σ):      64.4 ms ±   4.4 ms    [User: 12.3 ms, System: 13.5 ms]
-  Range (min … max):    59.7 ms …  71.1 ms    10 runs
+  Time (mean ± σ):      36.6 ms ±   3.0 ms    [User: 13.4 ms, System: 14.2 ms]
+  Range (min … max):    32.2 ms …  40.4 ms    10 runs
 
 Summary
-  quote-time ran
-    1.03 ± 0.13 times faster than default
+  default ran
+    1.01 ± 0.16 times faster than quote-time
 ```
 
 ### Performance Summary
@@ -136,9 +136,9 @@ Summary
 - Packet time ordering: about 11.5 ms to `/dev/null`, about 13.7 ms to a file in the latest run
 - Quote accept time ordering: about 12.5 ms to `/dev/null`, about 15.0 ms to a file in the latest run
 
-**Alacritty terminal-rendering wall time:**
-- Packet time ordering: about 66.3 ms mean
-- Quote accept time ordering: about 64.4 ms mean
+**Ghostty 1.3.1 terminal-rendering wall time:**
+- Packet time ordering: about 36.2 ms mean
+- Quote accept time ordering: about 36.6 ms mean
 
 ### Architecture
 
